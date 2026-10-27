@@ -277,7 +277,7 @@ function goCam(name) { tween = { from: { ...cam }, to: CAM[name], t0: performanc
 const ptrs = new Map(); let lastTap = 0, pinch0 = 0, dist0 = 0;
 const pdist = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
 canvas.addEventListener('pointerdown', (e) => {
-  canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); tween = null;
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {} ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); tween = null;
   if (ptrs.size === 2) { pinch0 = pdist(); dist0 = cam.dist; }
   if (ptrs.size === 1) { const t = performance.now(); if (t - lastTap < 320) { goCam(STEPS[st.step].cam); lastTap = 0; } else lastTap = t; }
   dirty = true;
