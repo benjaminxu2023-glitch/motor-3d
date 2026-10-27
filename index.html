@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f2">
+<link rel="icon" href="data:,">
+<title>电机构造与工作原理 · 3D</title>
+<style>
+:root { --font: Arial, -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; --text: #333; --sub: #666; --line: #d6d6d6; --bg: #f2f2f2; --acc: #333; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-text-size-adjust: 100%; }
+body { display: flex; flex-direction: column; overflow: hidden; }
+#view { position: relative; flex: none; height: 47vh; height: 47dvh; min-height: 300px; background: #f2f2f2; border-bottom: 1px solid var(--line); overflow: hidden; }
+#c { display: block; width: 100%; height: 100%; touch-action: none; }
+#labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lb { position: absolute; left: 0; top: 0; font-size: 11.5px; line-height: 1.2; padding: 2px 5px; border-radius: 3px; background: rgba(255,255,255,.9); border: 1px solid #c8c8c8; color: #333; white-space: nowrap; will-change: transform; }
+.lb.ph { font-weight: 700; font-size: 13px; padding: 1px 5px; }
+#hud { position: absolute; left: 8px; top: 8px; font-size: 11px; color: var(--sub); pointer-events: none; }
+#panel { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 14px calc(env(safe-area-inset-bottom) + 14px); background: #fff; }
+.nav { display: flex; align-items: center; gap: 8px; }
+.nav h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 700; text-align: center; }
+.nav .no { color: var(--sub); font-weight: 400; margin-right: 4px; }
+button { font-family: var(--font); font-size: 13px; color: var(--text); background: #f4f4f4; border: 1px solid #cfcfcf; border-radius: 6px; padding: 7px 10px; cursor: pointer; }
+button:active { background: #e6e6e6; }
+button.on { background: #333; color: #fff; border-color: #333; }
+.nav button { width: 40px; font-size: 16px; padding: 5px 0; }
+.dots { display: flex; justify-content: center; gap: 6px; margin: 6px 0 4px; }
+.dots span { width: 7px; height: 7px; border-radius: 50%; background: #d0d0d0; }
+.dots span.cur { background: #333; }
+#stepText { font-size: 14px; line-height: 1.6; margin: 6px 0 8px; }
+#stepText b { font-weight: 700; }
+#stepAct:empty { display: none; }
+#stepAct { margin-bottom: 8px; }
+.box { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 8px 0; background: #fafafa; }
+.box h3 { margin: 0 0 4px; font-size: 12px; color: var(--sub); font-weight: 700; }
+#wave { width: 100%; height: 96px; display: block; }
+.ro { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ro div span { color: var(--sub); }
+.row { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+.row label { flex: none; width: 74px; color: var(--sub); }
+.row input[type=range] { flex: 1; accent-color: #333; }
+.row .val { width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.seg { display: flex; flex: 1; }
+.seg button { flex: 1; border-radius: 0; }
+.seg button:first-child { border-radius: 6px 0 0 6px; }
+.seg button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chips button { padding: 6px 9px; }
+.note { font-size: 11.5px; color: var(--sub); line-height: 1.5; margin: 8px 0 0; }
+footer { text-align: center; font-size: 11.5px; color: #888; margin: 14px 0 4px; }
+</style>
+</head>
+<body>
+<div id="view">
+  <canvas id="c"></canvas>
+  <div id="labels"></div>
+  <div id="hud">单指拖动旋转 · 双指缩放 · 双击复位</div>
+</div>
+<div id="panel">
+  <div class="nav">
+    <button id="prev" aria-label="上一步">‹</button>
+    <h2><span class="no" id="stepNo">1/7</span><span id="stepTitle"></span></h2>
+    <button id="next" aria-label="下一步">›</button>
+  </div>
+  <div class="dots" id="dots"></div>
+  <div id="stepText"></div>
+  <div id="stepAct"></div>
+
+  <div class="box">
+    <h3 id="waveTitle">三相电流（横轴一个电周期，竖线 = 当前时刻）</h3>
+    <canvas id="wave"></canvas>
+    <div class="ro" id="ro"></div>
+  </div>
+
+  <div class="row">
+    <button id="play" style="width:74px">暂停</button>
+    <input type="range" id="speed" min="0.05" max="2" step="0.05" value="0.6">
+    <span class="val" id="speedV">0.60×</span>
+  </div>
+  <div class="row">
+    <label>转子类型</label>
+    <div class="seg"><button id="mCage" class="on">鼠笼（异步）</button><button id="mPm">永磁（同步）</button></div>
+  </div>
+  <div class="row" id="slipRow">
+    <label>滑差 s</label>
+    <input type="range" id="slip" min="0" max="0.2" step="0.005" value="0.05">
+    <span class="val" id="slipV">5.0%</span>
+  </div>
+  <div class="row" id="deltaRow" style="display:none">
+    <label>负载角 δ</label>
+    <input type="range" id="delta" min="0" max="80" step="1" value="30">
+    <span class="val" id="deltaV">30°</span>
+  </div>
+  <div class="chips">
+    <button id="tHousing">机壳</button>
+    <button id="tSection">截面</button>
+    <button id="tExplode">爆炸视图</button>
+    <button id="tLabels">标签</button>
+    <button id="tComps">分量磁场</button>
+    <button id="tField">合成磁场</button>
+    <button id="tSwap">交换 B、C 两相</button>
+    <button id="tReset">复位视角</button>
+  </div>
+  <p class="note">说明：动画已大幅放慢（实际 50 Hz 时磁场每秒转 50 圈）；气隙按比例放大以便观察；绕组为 24 槽、2 极、单层整距的简化画法。⊙ 电流流出屏幕，⊗ 流入屏幕；颜色越深电流越大。相色按国标：A 黄、B 绿、C 红。</p>
+  <footer>Designed by Benjamin Xu</footer>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
